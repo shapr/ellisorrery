@@ -41,14 +41,38 @@
           ];
           buildInputs = with pkgs;
             [
+              # Haskell
               hsPkgs.haskell-language-server
               haskellPackages.cabal-install
               cabal2nix
               haskellPackages.ghcid
               haskellPackages.fourmolu
               haskellPackages.cabal-fmt
+              # Postgres
+              postgresql_16
             ]
             ++ (builtins.attrValues (import ./scripts.nix {s = pkgs.writeShellScriptBin;}));
+
+          shellHook = ''
+            export PGDATA="$PWD/.postgres"
+            export PGHOST="$PGDATA"
+            export PGPORT=5432
+
+            # Only initialize when interactive, was running into problems with the LSP
+            if [ -t 1 ]; then
+              if [ ! -d "$PGDATA" ]; then
+                echo "Initializing PostgreSQL database in $PGDATA..."
+                initdb --auth=trust --no-locale --encoding=UTF8
+
+                echo "Starting PostgreSQL to create initial db"
+                pg_ctl start -o "-k $PGHOST"
+                createdb ellisorrery
+                pg_ctl stop
+              fi
+
+              echo "PostgreSQL is ready. Use 'pg_ctl start -o \"-k $PGHOST\"' to start it."
+            fi
+          '';
         });
 
       # nix build
